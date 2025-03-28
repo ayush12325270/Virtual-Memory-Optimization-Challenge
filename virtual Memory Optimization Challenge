@@ -1,0 +1,136 @@
+import random
+import matplotlib.pyplot as plt
+from collections import deque
+
+class VirtualMemoryManager:
+    def __init__(self, num_frames, memory_size):
+        """Initialize virtual memory manager with paging and segmentation."""
+        self.num_frames = num_frames
+        self.memory_size = memory_size
+        self.frames = []
+        self.page_faults = 0
+        self.page_replacements = 0
+        self.segment_table = {}
+
+    def simulate_lru(self, pages):
+        """Simulate LRU page replacement algorithm."""
+        self.frames.clear()
+        self.page_faults = 0
+        self.page_replacements = 0
+        cache = deque()
+        
+        for page in pages:
+            if page not in self.frames:
+                self.page_faults += 1
+                if len(self.frames) < self.num_frames:
+                    self.frames.append(page)
+                else:
+                    lru_page = cache.popleft()
+                    self.frames.remove(lru_page)
+                    self.frames.append(page)
+                    self.page_replacements += 1
+            else:
+                cache.remove(page)
+            cache.append(page)
+        return self.page_faults, self.page_replacements
+
+    def simulate_optimal(self, pages):
+        """Simulate Optimal page replacement algorithm."""
+        self.frames.clear()
+        self.page_faults = 0
+        self.page_replacements = 0
+        
+        for i, page in enumerate(pages):
+            if page not in self.frames:
+                self.page_faults += 1
+                if len(self.frames) < self.num_frames:
+                    self.frames.append(page)
+                else:
+                    future_uses = {p: pages[i+1:].index(p) if p in pages[i+1:] else float('inf') for p in self.frames}
+                    page_to_replace = max(future_uses, key=future_uses.get)
+                    self.frames.remove(page_to_replace)
+                    self.frames.append(page)
+                    self.page_replacements += 1
+        return self.page_faults, self.page_replacements
+
+    def simulate_fifo(self, pages):
+        """Simulate FIFO page replacement algorithm."""
+        self.frames.clear()
+        self.page_faults = 0
+        self.page_replacements = 0
+        queue = deque()
+
+        for page in pages:
+            if page not in self.frames:
+                self.page_faults += 1
+                if len(self.frames) < self.num_frames:
+                    self.frames.append(page)
+                    queue.append(page)
+                else:
+                    removed_page = queue.popleft()
+                    self.frames.remove(removed_page)
+                    self.frames.append(page)
+                    queue.append(page)
+                    self.page_replacements += 1
+        return self.page_faults, self.page_replacements
+    
+    def allocate_segment(self, segment_id, segment_size):
+        """Allocate memory segment if enough space is available."""
+        if sum(self.segment_table.values()) + segment_size <= self.memory_size:
+            self.segment_table[segment_id] = segment_size
+            return f"Segment {segment_id} allocated {segment_size} units."
+        else:
+            return "Not enough memory to allocate segment."
+    
+    def deallocate_segment(self, segment_id):
+        """Deallocate a memory segment."""
+        if segment_id in self.segment_table:
+            del self.segment_table[segment_id]
+            return f"Segment {segment_id} deallocated."
+        else:
+            return "Segment not found."
+    
+    def show_memory_fragmentation(self):
+        """Display memory fragmentation."""
+        allocated = sum(self.segment_table.values())
+        free_space = self.memory_size - allocated
+        return f"Allocated Memory: {allocated} | Free Memory: {free_space}"
+
+    def visualize(self, pages, algorithm='LRU'):
+        """Visualize page faults and replacements over time."""
+        faults = []
+        replacements = []
+        
+        for i in range(1, len(pages) + 1):
+            if algorithm == 'LRU':
+                f, r = self.simulate_lru(pages[:i])
+            elif algorithm == 'Optimal':
+                f, r = self.simulate_optimal(pages[:i])
+            elif algorithm == 'FIFO':
+                f, r = self.simulate_fifo(pages[:i])
+            faults.append(f)
+            replacements.append(r)
+        
+        plt.figure(figsize=(10, 5))
+        plt.plot(faults, label='Page Faults', marker='o')
+        plt.plot(replacements, label='Page Replacements', marker='x')
+        plt.xlabel('Number of Pages Processed')
+        plt.ylabel('Count')
+        plt.title(f'{algorithm} Page Replacement Simulation')
+        plt.legend()
+        plt.show()
+
+if __name__ == "__main__":
+    num_frames = 3
+    memory_size = 100
+    pages = [random.randint(1, 5) for _ in range(20)]
+    manager = VirtualMemoryManager(num_frames, memory_size)
+    
+    for algo in ['LRU', 'Optimal', 'FIFO']:
+        manager.visualize(pages, algorithm=algo)
+    
+    print(manager.allocate_segment(1, 30))
+    print(manager.allocate_segment(2, 50))
+    print(manager.show_memory_fragmentation())
+    print(manager.deallocate_segment(1))
+    print(manager.show_memory_fragmentation())
